@@ -155,7 +155,7 @@
     // tree
     var tree = d3.layout.tree()
         .nodeSize([20, 0])
-        .separation(function(a, b) { return ((a.parent == root) && (b.parent == root)) ? 1.5 : 1; })
+        .separation(function(a, b) { return ((a.parent == root) && (b.parent == root)) ? 1 : 1; })
         //.size([treeHeight, treeWidth])
       
 
