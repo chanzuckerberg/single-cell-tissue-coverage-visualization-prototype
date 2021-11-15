@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+  <style>
+        .legendText {
+          font: 10px sans-serif;
+        }
+        .axis {
+          font: 10px sans-serif;
+
+        }
+        .axis path,
+        .axis line {
+          fill: none;
+          stroke: #000;
+          shape-rendering: crispEdges;
+        }
+
+        .filled {
+            fill: url(#mainGradient);
+        }
+
+        .outlined {
+            fill:   none;
+            stroke: url(#mainGradient);
+            stroke-width: 4;
+        }
+
+      	.node {
+          cursor: pointer;
+        }
+
+        .node circle {
+          fill: #fff;
+          stroke-width: 1.5px;
+        }
+
+        .node text {
+          font: 10px sans-serif;
+        }
+
+        .overlay{
+            background-color:#EEE;
+        }
+
+        .link {
+          fill: none;
+          stroke: #ccc;
+          stroke-width: 1.5px;
+        }
+
+        .search {
+          width: 30%;
+        }
+
+        .button {
+          background-color: #008CBA; 
+          border: none;
+          color: white;
+          padding: 10px 15px;
+          text-align: center;
+          text-decoration: none;
+          display: inline-block;
+          font-size: 10px;
+          margin: 5px 10px;
+          cursor: pointer;
+          border-radius: 8px;
+        }
+        .hover {
+            background: lightsteelblue;
+            font: 12px sans-serif;
+            position: absolute;     
+            text-align: center;     
+            width: 80px;          
+            /*height: 54px;*/         
+            padding: 2px;       
+            font: 12px sans-serif;    
+            border: 0px;    
+            border-radius: 8px;     
+            pointer-events: none;  
+            opacity: 80%;
+        }
+        h1 {
+            font-family:Copperplate;
+            text-align: center;
+            color:black;
+        }
+  </style>
+<body>
+<!--   <h1>Tissue coverage tree</h1> -->
+  <div id ="legend"></div>
+  <div id="search"></div>
+  <button class="button" onclick="collapseAll()">Collapse All</button>
+  <div id ="tree"></div>
+  <script src="https://d3js.org/d3.v3.min.js"></script>
+  <script src="https://d3js.org/d3-color.v1.min.js"></script> 
+  <script src="https://d3js.org/d3-interpolate.v1.min.js"></script> 
+  <script src="https://d3js.org/d3-scale-chromatic.v1.min.js"></script>
+  <link rel="stylesheet" type="text/css" href="//cdnjs.cloudflare.com/ajax/libs/select2/3.5.0/select2.min.css"></link>
+  <script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
+  <script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/select2/3.5.0/select2.min.js"></script>
+  <script>
+
+    /////////////// define dimensions ///////////////
+
+    // general height and width
+    var height = window.innerHeight
+        width = window.innerWidth
+
+    
+    // color legend rectangle
+    var cbarWidth = 285
+        cbarHeight = 15
+
+    // legend object
+    var marginLeg = {top: 25, right: 10, bottom: 25, left: 10};
+        legendWidth = width
+        legendHeight = 100
+
+    // tree 
+    var marginTree = {top: 100, right: 20, bottom: 10, left: 120},
+        treeWidth = width 
+        treeHeight = height - legendHeight - marginLeg.top - marginLeg.bottom - marginTree.top - marginTree.bottom  
+    var depth = 275
+
+    /////////////// build objects ///////////////
+    // tree object //
+    //var zoom = d3.behavior.zoom().scale(.5)
+    var svg = d3.select("#tree").append("svg")
+        .attr("width", width)
+        //.attr("width", width - 2 * marginTree.right)
+        .attr("height", height)
+        .call(  
+                d3.behavior.zoom() 
+                    .scaleExtent([.1, 10])  
+                    .on("zoom", zoom)  
+            )
+        .on("resize", updateWindow)
+        .append("g")
+        //.attr("transform", "translate(" + 100 + "," + (height/2 - legendHeight + 20) + ")" + "scale(.5)");
+        .attr("transform", "translate(" + 100 + "," + (height/2 - legendHeight) + ")");
+    
+
+    // legend object //
+    var legend = d3.select("#legend").append("svg")
+        .attr("width", legendWidth)
+        .attr("height", legendHeight)
+      .append("g")
+        .attr("transform", "translate(" + marginLeg.left + "," + marginLeg.top + ")");
+
+    /////////////// add to objects ///////////////
+
+    /// add to tree object ///
+    var separation = 200;
+
+    // tree
+    var tree = d3.layout.tree()
+        .nodeSize([20, 0])
+        .separation(function(a, b) { return ((a.parent == root) && (b.parent == root)) ? 1.5 : 1; })
+        //.size([treeHeight, treeWidth])
+      
+
+    // add hover ability //
+    var div = d3.select("#tree").append("div") 
+        .attr("class", "tooltip")       
+        .style("opacity", 0);
+
+    // hover label
+    var tooltip = d3.select("#tree")
+      .append("div")
+      .classed('hover', true)
+      .attr("height", "54px")
+      .style("position", "absolute")
+      .style("z-index", "10")
+      .style("visibility", "hidden")
+
+    // add node size legend //
+      var data = [{"xValue": 150 + separation,  "yValue": 5,  "size": 2,  "label": '0 cells'},
+                  {"xValue": 150 + separation * 2,  "yValue": 5,  "size": 2,  "label": '0 cells'},
+                  {"xValue": 150 + separation * 3,  "yValue": 5,  "size": 2,  "label": '0 cells'},
+                  {"xValue": 150 + separation * 4, "yValue": 5,  "size": 2,  "label": '0 cells'},
+                  {"xValue": 150 + separation * 5, "yValue": 5,  "size": 2,  "label": '0 cells'},
+                  {"xValue": 150 + separation * 6, "yValue": 5,  "size": 2,  "label": '0 cells'},
+                  {"xValue": 150 + separation * 7, "yValue": 5,  "size": 2,  "label": '0 cells'},
+                  {"xValue": 150 + separation,  "yValue": 20, "size": 8,  "label": '390,000 cells'},
+                  {"xValue": 150 + separation * 2,  "yValue": 20, "size": 8,  "label": '300,000 cells'},
+                  {"xValue": 150 + separation * 3,  "yValue": 20, "size": 8,  "label": '125,000 cells'},
+                  {"xValue": 150 + separation * 4, "yValue": 20, "size": 8,  "label": '90,000 cells'},
+                  {"xValue": 150 + separation * 5, "yValue": 20, "size": 8,  "label": '80,000 cells'},
+                  {"xValue": 150 + separation * 6, "yValue": 20, "size": 8,  "label": '65,000 cells'},
+                  {"xValue": 150 + separation * 7, "yValue": 20, "size": 8,  "label": '50,000 cells'},
+                  {"xValue": 150 + separation,  "yValue": 45, "size": 12, "label": '780,000 cells or more'},
+                  {"xValue": 150 + separation * 2,  "yValue": 45, "size": 12, "label": '600,000 cells or more'},
+                  {"xValue": 150 + separation * 3,  "yValue": 45, "size": 12, "label": '250,000 cells or more'},
+                  {"xValue": 150 + separation * 4, "yValue": 45, "size": 12, "label": '180,000 cells or more'},
+                  {"xValue": 150 + separation * 5, "yValue": 45, "size": 12, "label": '160,000 cells or more'},
+                  {"xValue": 150 + separation * 6, "yValue": 45, "size": 12, "label": '130,000 cells or more'},
+                  {"xValue": 150 + separation * 7, "yValue": 45, "size": 12, "label": '100,000 cells or more'},]
+
+      // cirlces
+      legend
+        .selectAll("svg")
+        .data(data)
+        .enter()
+        .append("circle")
+          .attr("cx", function(d) { return d.xValue})
+          .attr("cy", function(d) { return d.yValue})
+          .attr("r", function(d)  { return d.size})
+          .style("fill", "none")
+          .attr("stroke", "black")
+
+      // lines
+      legend
+        .selectAll("svg")
+        .data(data)
+        .enter()
+        .append("line")
+          .attr("x1", function(d) { return d.xValue + d.size})
+          .attr("x2", function(d) { return d.xValue + 30})
+          .attr("y1", function(d) { return d.yValue})
+          .attr("y2", function(d) { return d.yValue})
+          .attr('stroke', 'black')
+          .style('stroke-dasharray', ('2, 2'))
+
+      // text
+      legend
+        .selectAll("svg")
+        .data([{"xValue": 150 + separation,  "title": 'System level'},
+               {"xValue": 150 + separation * 2,  "title": 'Tissue level 1'},
+               {"xValue": 150 + separation * 3, "title": 'Tissue level 2'},
+               {"xValue": 150 + separation * 4, "title": 'Tissue level 3'},
+               {"xValue": 150 + separation * 5, "title": 'Tissue level 4'},
+               {"xValue": 150 + separation * 6, "title": 'Tissue level 5'},
+               {"xValue": 150 + separation * 7, "title": 'Tissue level 6'}])
+        .enter()
+        .append("text")
+          .attr("class", "legendText")
+          .attr('x', function(d) { return d.xValue - 20})
+          .attr('y', -10)
+          .text(function(d) { return d.title})
+          .attr('alignment-baseline', 'middle')
+
+      legend
+        .selectAll("svg")
+        .data(data)
+        .enter()
+        .append("text")
+          .attr("class", "legendText")
+          .attr('x', function(d) { return d.xValue + 32})
+          .attr('y', function(d) { return d.yValue})
+          .text(function(d) { return d.label})
+          .attr('alignment-baseline', 'middle')
+    
+
+    /// add to legend object ///
+    
+    // color scale
+    var svgDefs = legend.append("defs")
+    var mainGradient = svgDefs.append("linearGradient")
+        .attr('id', 'mainGradient')
+
+    mainGradient.append('stop')
+      .attr('offset', '0%')
+      .attr("stop-color", d3.interpolateViridis(0))
+
+    mainGradient.append('stop')
+      .attr('offset', '10%')
+      .attr("stop-color", d3.interpolateViridis(0.1))
+
+    mainGradient.append('stop')
+      .attr('offset', '20%')
+      .attr("stop-color", d3.interpolateViridis(0.2))
+
+    mainGradient.append('stop')
+      .attr('offset', '30%')
+      .attr("stop-color", d3.interpolateViridis(0.3))
+
+    mainGradient.append('stop')
+      .attr('offset', '40%')
+      .attr("stop-color", d3.interpolateViridis(0.4))
+
+    mainGradient.append('stop')
+      .attr('offset', '50%')
+      .attr("stop-color", d3.interpolateViridis(0.5))
+
+    mainGradient.append('stop')
+      .attr('offset', '60%')
+      .attr("stop-color", d3.interpolateViridis(0.6))
+
+    mainGradient.append('stop')
+      .attr('offset', '70%')
+      .attr("stop-color", d3.interpolateViridis(0.7))
+    
+    mainGradient.append('stop')
+      .attr('offset', '80%')
+      .attr("stop-color", d3.interpolateViridis(0.8))
+
+    mainGradient.append('stop')
+      .attr('offset', '90%')
+      .attr("stop-color", d3.interpolateViridis(0.9))
+
+    mainGradient.append('stop')
+      .attr('offset', '100%')
+      .attr("stop-color", d3.interpolateViridis(1))
+
+    // add color legend bar 
+    legend.append('rect')
+        .classed('filled', true)
+        .attr('width', cbarWidth)
+        .attr('height', cbarHeight)
+
+    // add scale to color legend bar
+    var ticks = d3.scale.linear()
+        .domain([0, 1])
+        .range([0, cbarWidth])
+
+    var axis = d3.svg.axis()
+        .scale(ticks)
+        .ticks(10)
+
+    legend.append("g")
+      .attr("class", "axis")
+      .call(axis)
+      .attr("transform", "translate(" + 0 + "," + cbarHeight + ")");
+    
+    // add text for color legend
+    legend.append('text')
+      .attr("class", "legendText") 
+      .attr("x", 75)
+      .attr('y', -10)
+      .text("Percent of child nodes present")
+
+    /////////////// define variables ///////////////
+
+    var i = 0,
+        duration = 750,
+        root,
+        select2_data,
+        paths;
+
+    
+
+    var diagonal = d3.svg.diagonal()
+        .projection(function(d) { return [d.y, d.x]; });
+
+    
+
+    /////////////// helper functions ///////////////
+
+    // general
+    function zoom() {
+        svg.attr("transform", "translate(" 
+            + d3.event.translate 
+            + ")scale(" + d3.event.scale + ")");
+            //+ ")scale(" + ".5" + ")");
+    }
+
+    function updateWindow(){
+      var height = window.innerHeight
+          width = window.innerWidth
+
+      d3.select("#tree").selectAll("svg")
+        .attr("width", width)
+        .attr("height", height)
+
+      d3.select("#legend").selectAll("svg")
+        .attr("width", width)
+
+      update(root)
+
+    }
+
+    // hover 
+    function numberWithCommas(x) {
+        return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    }
+
+    // search
+    function clear_formatting(d){
+      d.class = ''
+      if (d.children) {
+        d.children.forEach(clear_formatting)
+      }
+      else if (d._children) {
+        d._children.forEach(clear_formatting)
+      }
+    }
+
+    function update_tree(d, map){
+      d.class = map[d.name]
+      if (d.children) {
+        d.children.forEach(function(d) {
+          return update_tree(d, map)
+        })
+
+      }
+      else if (d._children) {
+        d._children.forEach(function(d) {
+          return update_tree(d, map)
+        })
+      }
+    }
+
+    function openPaths(d){
+      if (d._children) {
+        if (d.class === 'open') {
+          d.children = d._children
+          d.children.forEach(openPaths)
+        }
+      } 
+    }
+
+    function extract_select2_data(node,leaves,index, list){
+            if (list.includes(node.name)) {
+              return false
+            } 
+            list.push(node.name)
+            leaves.push({id:++index,text:node.name});
+            if (node.children){
+                for(var i = 0;i<node.children.length;i++){
+                    result = extract_select2_data(node.children[i],leaves,index, list)
+                    if (result) {
+                      index = result[0];
+                  }
+                }
+            }
+            return [index,leaves];
+    }
+
+    $("#search").on("select2-selecting", function(e) {
+        clear_formatting(root);
+        searchText = e.object.text;
+        for(var i = 0;i<paths.length;i++){
+          if (paths[i].name === searchText) {
+            search = paths[i].values
+          }
+        }
+
+        update_tree(root, search)
+        root.children.forEach(openPaths);
+        update(root);
+
+        console.log(root)
+    })
+
+
+    // tree
+    function collapse(d) {
+      if (d.children) {
+        d._children = d.children;
+        d._children.forEach(collapse);
+        d.children = null;
+      }
+    }
+
+    function collapseAll() {
+      clear_formatting(root)
+      root.children.forEach(collapse);
+      update(root);
+    }
+
+    function expand(d) {
+      if (d._children) {
+        d.children = d._children;
+        d._children = null;
+      }
+      if (d.children) {
+        d.children.forEach(expand);
+      }
+      
+    }
+
+    function update(source) {
+
+      // Compute the new tree layout.
+      var nodes = tree.nodes(root).reverse(),
+          links = tree.links(nodes);
+
+      // Normalize for fixed-depth.
+      nodes.forEach(function(d) { d.y = d.depth * 275; });
+
+      // Update the nodes…
+      var node = svg.selectAll("g.node")
+          .data(nodes, function(d) { return d.id || (d.id = ++i); });
+
+      // Enter any new nodes at the parent's previous position.
+      var nodeEnter = node.enter().append("g")
+          .attr("class", "node")
+          .attr("transform", function(d) { return "translate(" + source.y0 + "," + source.x0 + ")"; })
+          .on("click", click)
+          .on("mouseover", function(d) {
+            if ((d.tissue_cells > 0) || (d.children_cells > 0)) {
+              tooltip.text('Tissue cells: ' + numberWithCommas(d.tissue_cells) + ' Child term cells: ' + numberWithCommas(d.children_cells))
+            }
+            else {
+              tooltip.text('Cells: ' + numberWithCommas(d.tissue_cells))
+            }
+            
+            tooltip.style("visibility", "visible");
+            
+            })
+            .on("mousemove", function() {
+              return tooltip.style("top",
+                (d3.event.pageY - 10) + "px").style("left", (d3.event.pageX + 10) + "px");
+            })
+            .on("mouseout", function() {
+              return tooltip.style("visibility", "hidden");
+            });
+    
+
+      // add cirlce nodes
+      nodeEnter.append("circle")
+          .attr("r", 0)
+          .style("stroke", function(d){
+            if (d.class === 'highlight'){
+              return "#ff4136"
+            }
+          })
+
+
+      nodeEnter.append("text")
+          .attr("x", function(d) { return d.children || d._children ? -15 : 15; })
+          .attr("dy", ".35em")
+          .attr("text-anchor", function(d) { return d.children || d._children ? "end" : "start"; })
+          .text(function(d) { return d.name; })
+          .style("fill-opacity", 1e-6);
+
+      // Transition nodes to t heir new position.
+      var nodeUpdate = node.transition()
+          .duration(duration)
+          .attr("transform", function(d) { return "translate(" + d.y + "," + d.x + ")"; });
+
+      // update styling of cirlce nodes
+      nodeUpdate.select("circle")
+          .attr("r", function(d) {
+              return d.size;
+          })
+          .style("fill", function(d){
+              return d3.interpolateViridis(d.perc)
+          })
+          .style("stroke", function(d){
+            if (d.class === 'highlight'){
+              return "#ff4136"
+            }
+          })
+        
+      nodeUpdate.select("text")
+          .style("fill-opacity", 1);
+
+      // Transition exiting nodes to the parent's new position.
+      var nodeExit = node.exit().transition()
+          .duration(duration)
+          .attr("transform", function(d) { return "translate(" + source.y + "," + source.x + ")"; })
+          .remove();
+
+      nodeExit.select("circle")
+          .attr("r", 1e-6);
+
+      nodeExit.select("text")
+          .style("fill-opacity", 1e-6);
+
+      // Update the links…
+      var link = svg.selectAll("path.link")
+          .data(links, function(d) { return d.target.id; });
+
+      // Enter any new links at the parent's previous position.
+      link.enter().insert("path", "g")
+          .attr("class", "link")
+          .attr("d", function(d) {
+            var o = {x: source.x0, y: source.y0};
+            return diagonal({source: o, target: o});
+          });
+
+      // Transition links to their new position.
+      link.transition()
+          .duration(duration)
+          .attr("d", diagonal)
+          .style("stroke", function(d) {
+            if(d.target.class=='open' || d.target.class=='highlight'){
+              return "#ff4136";
+            }
+          })
+
+      // Transition exiting nodes to the parent's new position.
+      link.exit().transition()
+          .duration(duration)
+          .attr("d", function(d) {
+            var o = {x: source.x, y: source.y};
+            return diagonal({source: o, target: o});
+          })
+          .remove();
+
+      // Stash the old positions for transition.
+      nodes.forEach(function(d) {
+        d.x0 = d.x;
+        d.y0 = d.y;
+      });
+    }
+
+    // Toggle children on click.
+    function click(d) {
+      if (d.children) {
+        d._children = d.children;
+        d.children = null;
+      } else {
+        d.children = d._children;
+        d._children = null;
+      }
+      update(d);
+    }
+
+    /////////////// import tree data ///////////////
+    d3.json("data.json", function(error, data) {
+      if (error) throw error;
+      root = data;
+      root.x0 = height / 2;
+      root.y0 = 0;
+      select2_data = extract_select2_data(data,[],0, [])[1];
+
+      root.children.forEach(collapse);
+      update(root);
+
+      //init search box
+      $("#search").select2({
+        data: select2_data,
+        containerCssClass: "search"
+      });
+    });
+
+    /////////////// import tree data ///////////////
+    d3.json("paths.json", function(error, data) {
+      paths = data
+    });
+
+    
+    window.addEventListener("resize", updateWindow);
+    
+  </script>
+</body>
+</html>
